@@ -1,11 +1,10 @@
 package main
 
 import Helpers._
+import com.typesafe.scalalogging.LazyLogging
 
-/**
-  * Created by tomas on 26-02-16.
-  */
-object Main {
+
+object Main extends LazyLogging {
 
   def replaceIrregularities(string: String) = string
     .replaceAll("<br />", "\n")
@@ -51,12 +50,14 @@ object Main {
       }
 
     categoriesAndWords.foreach { l =>
-      println("-------")
-      println("ONDERWERP: " + l._1)
-      println("top 5 words")
-      l._2.toSeq take 5 foreach println
+      logger.debug("-------")
+      logger.debug("ONDERWERP: " + l._1)
+      logger.debug("top 5 words")
+      l._2.toSeq take 5 foreach( el => logger.debug(el._1 + " keer: " + el._2))
     }
 
+
+    true
   }
 
 }

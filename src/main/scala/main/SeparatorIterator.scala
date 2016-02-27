@@ -8,7 +8,7 @@ case class SeparatorIterator(fileContents: String, separator: String) extends It
 
   var pos = 0
 
-  override def hasNext: Boolean = pos < (fileContents.length)
+  override def hasNext: Boolean = pos < fileContents.length
 
   override def next(): String = {
     val startPos = pos
