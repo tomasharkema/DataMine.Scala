@@ -1,12 +1,13 @@
 package main
 
+import java.util
 import java.util.{Date, UUID}
 
 import Helpers._
 import com.datumbox.applications.nlp.TextClassifier
 import com.datumbox.common.dataobjects.{AssociativeArray, Record, Dataset}
 import com.datumbox.common.persistentstorage.ConfigurationFactory
-import com.datumbox.framework.machinelearning.classification.{MultinomialNaiveBayes, BinarizedNaiveBayes}
+import com.datumbox.framework.machinelearning.classification.{BernoulliNaiveBayes, MultinomialNaiveBayes, BinarizedNaiveBayes}
 import com.datumbox.framework.machinelearning.featureselection.categorical.ChisquareSelect
 import com.datumbox.framework.utilities.text.extractors.{TextExtractor, NgramsExtractor}
 import com.typesafe.scalalogging.LazyLogging
@@ -127,25 +128,35 @@ object Main extends LazyLogging {
       }
     }
 
-    val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + UUID.randomUUID.toString, records.toArray)
+    val classifiers = Iterator(
+      (classOf[MultinomialNaiveBayes], new MultinomialNaiveBayes.TrainingParameters()),
+      (classOf[BinarizedNaiveBayes], new BinarizedNaiveBayes.TrainingParameters()),
+      (classOf[BernoulliNaiveBayes], new BernoulliNaiveBayes.TrainingParameters())
+    ).map { c =>
+      val (c1, c2) = c
+      TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + "_" + c1.getName + "_" + UUID.randomUUID.toString, records.toArray, c1, c2)
+    }
 
     isLearning = false
 
     logger.info("Trained TextClassifier")
 
-    val predictions = Future.sequence(checkSentences.map { zin =>
-      Future {
-        val record = classifier.synchronized(classifier.predict(zin))
-        (zin, record)
+    val predictions = Future.sequence(classifiers.map { classifier =>
+      val c = classifier.getTrainingParameters.getClass.getSimpleName
+      checkSentences.map { zin =>
+        Future {
+          val record = classifier.synchronized(classifier.predict(zin))
+          (c, zin, record)
+        }
       }
-    })
+    }.flatten)
 
 //    Await.result(categoriesAndCountedWords.map(Future.sequence(_)), Duration.Inf)
     val res = Await.result(predictions, Duration.Inf)
 
     res foreach { perd =>
-      val (zin, rec) = perd
-      logger.info(zin)
+      val (c, zin, rec) = perd
+      logger.info(zin + " from: " + c)
       logger.info("hoort bij: " + rec.getYPredicted.toString)
       logger.info(rec.getYPredictedProbabilities.toString)
     }

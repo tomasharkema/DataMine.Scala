@@ -3,6 +3,7 @@ package main
 import java.util.UUID
 
 import com.datumbox.common.dataobjects.{AssociativeArray, Record}
+import com.datumbox.framework.machinelearning.classification.MultinomialNaiveBayes
 import com.datumbox.framework.utilities.text.extractors.{NgramsExtractor, TextExtractor}
 import org.specs2.mutable.Specification
 
@@ -20,7 +21,7 @@ class TextClassifierInvokerTest extends Specification {
 
       val la = Array(new Record(new AssociativeArray(casted), "A"))
 
-      val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictieTest" + UUID.randomUUID.toString, la)
+      val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictieTest" + UUID.randomUUID.toString, la, classOf[MultinomialNaiveBayes], new MultinomialNaiveBayes.TrainingParameters())
 
 //      println(classifier)
 

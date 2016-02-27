@@ -7,6 +7,9 @@ import com.datumbox.common.persistentstorage.ConfigurationFactory;
 import com.datumbox.common.persistentstorage.interfaces.DatabaseConfiguration;
 import com.datumbox.framework.machinelearning.classification.BinarizedNaiveBayes;
 import com.datumbox.framework.machinelearning.classification.MultinomialNaiveBayes;
+import com.datumbox.framework.machinelearning.common.bases.datatransformation.DataTransformer;
+import com.datumbox.framework.machinelearning.common.bases.featureselection.FeatureSelection;
+import com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel;
 import com.datumbox.framework.machinelearning.ensemblelearning.BayesianEnsembleMethod;
 import com.datumbox.framework.machinelearning.featureselection.categorical.ChisquareSelect;
 import com.datumbox.framework.utilities.text.extractors.NgramsExtractor;
@@ -18,7 +21,7 @@ import java.util.UUID;
  */
 public class TextClassifierInvoker {
 
-    public static TextClassifier apply(String name, Record[] records) throws InterruptedException {
+    public static <ML extends BaseMLmodel> TextClassifier apply(String name, Record[] records, Class<? extends ML> mlmodelClass, BaseMLmodel.TrainingParameters t) throws InterruptedException, InstantiationException, IllegalAccessException {
         DatabaseConfiguration dbConf = ConfigurationFactory.MAPDB.getConfiguration();
 //        DatabaseConfiguration dbConf = ConfigurationFactory.INMEMORY.getConfiguration();
         //Setup Training Parameters
@@ -26,8 +29,9 @@ public class TextClassifierInvoker {
         TextClassifier.TrainingParameters trainingParameters = new TextClassifier.TrainingParameters();
 
         //Classifier configuration
-        trainingParameters.setMLmodelClass(MultinomialNaiveBayes.class);
-        trainingParameters.setMLmodelTrainingParameters(new MultinomialNaiveBayes.TrainingParameters());
+        trainingParameters.setMLmodelClass(mlmodelClass);
+
+        trainingParameters.setMLmodelTrainingParameters(t);
 
         //Set data transfomation configuration
         trainingParameters.setDataTransformerClass(null);
