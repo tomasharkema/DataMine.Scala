@@ -24,8 +24,17 @@ object Main extends LazyLogging {
 
   def main(args: Array[String]) {
 
-    logger.info("Load file")
-    val stream =  Future { getClass.getResourceAsStream("/klachtendumpgemeente.csv") }
+    val isTest = args.contains("test")
+
+    val file = if(isTest) {
+      "/small.csv"
+    } else {
+      "/klachtendumpgemeente.csv"
+    }
+
+    logger.info("Load file " + file)
+
+    val stream =  Future { getClass.getResourceAsStream(file) }
     val lines = stream.flatMap { stream =>
       logger.info("Load loaded. Read it.")
       Future { scala.io.Source.fromInputStream(stream).getLines }
@@ -72,38 +81,8 @@ object Main extends LazyLogging {
 //      }
 //    }}
 
-
-    val recordSync = new Object
-
     val trainedSets = categoriesAndInput.flatMap { cat =>
       logger.info("Training TextClassifier")
-
-      val dbConf = ConfigurationFactory.INMEMORY.getConfiguration
-      //Setup Training Parameters
-      //-------------------------
-      val trainingParameters = new TextClassifier.TrainingParameters()
-
-      //Classifier configuration
-      trainingParameters.setMLmodelClass(classOf[MultinomialNaiveBayes])
-      trainingParameters.setMLmodelTrainingParameters(new MultinomialNaiveBayes.TrainingParameters())
-
-      //Set data transfomation configuration
-      trainingParameters.setDataTransformerClass(null)
-      trainingParameters.setDataTransformerTrainingParameters(null)
-
-      //Set feature selection configuration
-      trainingParameters.setFeatureSelectionClass(classOf[ChisquareSelect])
-      trainingParameters.setFeatureSelectionTrainingParameters(new ChisquareSelect.TrainingParameters())
-
-      //Set text extraction configuration
-      trainingParameters.setTextExtractorClass(classOf[NgramsExtractor])
-      trainingParameters.setTextExtractorParameters(new NgramsExtractor.Parameters())
-
-
-      //Fit the classifier
-      //------------------
-
-      val classifier = new TextClassifier("GemeenteAfdelingPredictie" + UUID.randomUUID.toString, dbConf)
 
       val records = cat.map { el =>
         val (key, value) = el
@@ -119,15 +98,7 @@ object Main extends LazyLogging {
           }
       }.toStream.flatten
 
-      val d = new Dataset(dbConf)
-
-      records foreach { el =>
-        d.add(el)
-      }
-
-      logger.info("Fitting TextClassifier")
-
-      classifier.fit(d, trainingParameters)
+      val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + UUID.randomUUID.toString, records.toArray)
 
       logger.info("Trained TextClassifier")
       Future(classifier)

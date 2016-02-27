@@ -127,9 +127,6 @@ class HelpersStreamTest extends Specification {
         .groupByKeyAndValue(_.key)(_.value.toStream)
         .map(el => (el._1, el._2.toList))
 
-      println(grouped)
-
-
       grouped("Belastingen") should contain("BILJETNUMMER 36043336")
       grouped("Belastingen") should contain("Afhandeling lopend bezwaar<wbr />/beroep")
 
