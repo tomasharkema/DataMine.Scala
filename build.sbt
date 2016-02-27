@@ -13,7 +13,9 @@ libraryDependencies ++= Seq(
   "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
   "org.slf4j" % "slf4j-api" % "1.7.6",
   "org.slf4j" % "log4j-over-slf4j" % "1.7.6",
-  "ch.qos.logback" % "logback-classic" % "1.0.3"
+  "ch.qos.logback" % "logback-classic" % "1.0.3",
+
+  "com.datumbox" % "datumbox-framework" % "0.6.1"
 )
 
 scalacOptions in Test ++= Seq("-Yrangepos")
@@ -22,5 +24,3 @@ ScoverageSbtPlugin.ScoverageKeys.coverageMinimum := 70
 ScoverageSbtPlugin.ScoverageKeys.coverageFailOnMinimum := true
 
 ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := true
-
-parallelExecution in Test := false

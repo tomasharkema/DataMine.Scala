@@ -9,7 +9,7 @@ class MainTest extends Specification {
 
   "main class" should {
     "run" in {
-      Main.main(Array())
+      Main.main(Array("test"))
       true should be equalTo true
     }
   }
