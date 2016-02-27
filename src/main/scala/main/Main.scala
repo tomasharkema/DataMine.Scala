@@ -1,6 +1,7 @@
 package main
 
 import java.util
+import java.util.concurrent.{Executors, Executor}
 import java.util.{Date, UUID}
 
 import Helpers._
@@ -13,11 +14,11 @@ import com.datumbox.framework.utilities.text.extractors.{TextExtractor, NgramsEx
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
-
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Await, Future}
 
 object Main extends LazyLogging {
+
+  implicit val exec = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
 
   def replaceIrregularities(string: String) = string
     .replaceAll("<br />", "\n")
