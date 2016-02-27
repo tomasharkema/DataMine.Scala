@@ -38,11 +38,13 @@ object Main extends LazyLogging {
 
     val isTest = args.contains("test")
 
-    val file = if(isTest) {
-      "/small.csv"
-    } else {
+    val file =
+//      if (true) {
+        if(isTest) {
+        "/small.csv"
+      } else {
       "/klachtendumpgemeente.csv"
-    }
+      }
 
     logger.info("Load file " + file)
 
@@ -133,7 +135,7 @@ object Main extends LazyLogging {
 
     val predictions = Future.sequence(checkSentences.map { zin =>
       Future {
-        val record = classifier.predict(zin)
+        val record = classifier.synchronized(classifier.predict(zin))
         (zin, record)
       }
     })
