@@ -72,6 +72,9 @@ object Main extends LazyLogging {
 //      }
 //    }}
 
+
+    val recordSync = new Object
+
     val trainedSets = categoriesAndInput.flatMap { cat =>
       logger.info("Training TextClassifier")
 
@@ -103,38 +106,35 @@ object Main extends LazyLogging {
       val classifier = new TextClassifier("GemeenteAfdelingPredictie" + UUID.randomUUID.toString, dbConf)
       val d = new Dataset(dbConf)
 
-      val records = Future.sequence(cat.map { el =>
+
+      val records = cat.map { el =>
         val (key, value) = el
-        Future {
-          value.filter(_ != "")
-            .map(_.replaceAll("\\.", "")
-              .replaceAll("\\,", "")
-              .replaceAll("\n", " "))
-            .map { string =>
-              val ex  = TextExtractor.newInstance(classOf[NgramsExtractor], new NgramsExtractor.Parameters())
-              val extractedString = ex.extract(string)
-              val casted = extractedString.asInstanceOf[java.util.Map[Object, Object]]
-              new Record(new AssociativeArray(casted), key)
-            }
-        }
-      }.toStream)
+        value.filter(_ != "")
+          .map(_.replaceAll("\\.", "")
+            .replaceAll("\\,", "")
+            .replaceAll("\n", " "))
+          .map { string =>
+            val ex  = TextExtractor.newInstance(classOf[NgramsExtractor], new NgramsExtractor.Parameters())
+            val extractedString = ex.extract(string)
+            val casted = extractedString.asInstanceOf[java.util.Map[Object, Object]]
+            new Record(new AssociativeArray(casted), key)
+          }
+      }.toStream.flatten
 
-      records.map { records =>
-        records.flatten foreach { el =>
-          d.synchronized { d.add(el) }
-        }
-
-        logger.info("Fitting TextClassifier")
-
-        classifier.fit(d, trainingParameters)
-
-        logger.info("Trained TextClassifier")
-        classifier
+      records foreach { el =>
+        d.add(el)
       }
+
+      logger.info("Fitting TextClassifier")
+
+      classifier.fit(d, trainingParameters)
+
+      logger.info("Trained TextClassifier")
+      Future(classifier)
     }
 
     val predictions = trainedSets.flatMap { classifier =>
-      Future.sequence(Seq(
+      Future.sequence(Iterator(
         "ik heb een klacht",
         "wtf gebeurt hier",
         "ik wil naar huis",
