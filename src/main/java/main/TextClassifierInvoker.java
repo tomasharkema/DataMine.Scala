@@ -19,7 +19,7 @@ import java.util.UUID;
 public class TextClassifierInvoker {
 
     public static TextClassifier apply(String name, Record[] records) throws InterruptedException {
-        DatabaseConfiguration dbConf = ConfigurationFactory.INMEMORY.getConfiguration();
+        DatabaseConfiguration dbConf = ConfigurationFactory.MAPDB.getConfiguration();
         //Setup Training Parameters
         //-------------------------
         TextClassifier.TrainingParameters trainingParameters = new TextClassifier.TrainingParameters();

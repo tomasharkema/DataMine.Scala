@@ -1,6 +1,6 @@
 package main
 
-import java.util.UUID
+import java.util.{Date, UUID}
 
 import Helpers._
 import com.datumbox.applications.nlp.TextClassifier
@@ -22,7 +22,19 @@ object Main extends LazyLogging {
     .replaceAll("<br />", "\n")
     .replaceAll("<wbr />", "\n")
 
+  val checkSentences = Iterator(
+    "ik heb een klacht",
+    "wtf gebeurt hier",
+    "ik wil naar huis",
+    "In de brief stond dat hij kon parkeren in de Museumpleingarage!",
+    "Ik kon door de marathon mijn huis niet berreiken",
+    "Er is nooit plek bij de fietsenrekken",
+    "Mijn belastingaangifte lukt niet!"
+  )
+
   def main(args: Array[String]) {
+
+    println(args.toSeq)
 
     val isTest = args.contains("test")
 
@@ -98,6 +110,15 @@ object Main extends LazyLogging {
           }
       }.toStream.flatten
 
+      val isLearning = true
+
+      Future {
+        while (isLearning) {
+          logger.debug("Is still learning " + new Date().toString)
+          Thread.sleep(30000)
+        }
+      }
+
       val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + UUID.randomUUID.toString, records.toArray)
 
       logger.info("Trained TextClassifier")
@@ -105,15 +126,7 @@ object Main extends LazyLogging {
     }
 
     val predictions = trainedSets.flatMap { classifier =>
-      Future.sequence(Iterator(
-        "ik heb een klacht",
-        "wtf gebeurt hier",
-        "ik wil naar huis",
-        "In de brief stond dat hij kon parkeren in de Museumpleingarage!",
-        "Ik kon door de marathon mijn huis niet berreiken",
-        "Er is nooit plek bij de fietsenrekken",
-        "Mijn belastingaangifte lukt niet!"
-      ).map { zin =>
+      Future.sequence(checkSentences.map { zin =>
         Future {
           val record = classifier.predict(zin)
           (zin, record)
