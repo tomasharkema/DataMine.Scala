@@ -110,29 +110,33 @@ object Main extends LazyLogging {
           }
       }.toStream.flatten
 
-      val isLearning = true
+      Future(records)
+    }
 
-      Future {
-        while (isLearning) {
-          logger.debug("Is still learning " + new Date().toString)
-          Thread.sleep(30000)
-        }
+    val records = Await.result(trainedSets, Duration.Inf)
+
+    var isLearning = true
+    val isLearningObj = new Object
+
+    Future {
+      while (isLearningObj.synchronized { isLearning }) {
+        logger.debug("Is still learning " + new Date().toString)
+        Thread.sleep(30000)
       }
-
-      val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + UUID.randomUUID.toString, records.toArray)
-
-      logger.info("Trained TextClassifier")
-      Future(classifier)
     }
 
-    val predictions = trainedSets.flatMap { classifier =>
-      Future.sequence(checkSentences.map { zin =>
-        Future {
-          val record = classifier.predict(zin)
-          (zin, record)
-        }
-      })
-    }
+    val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + UUID.randomUUID.toString, records.toArray)
+
+    isLearning = false
+
+    logger.info("Trained TextClassifier")
+
+    val predictions = Future.sequence(checkSentences.map { zin =>
+      Future {
+        val record = classifier.predict(zin)
+        (zin, record)
+      }
+    })
 
 //    Await.result(categoriesAndCountedWords.map(Future.sequence(_)), Duration.Inf)
     val res = Await.result(predictions, Duration.Inf)

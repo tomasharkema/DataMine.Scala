@@ -20,13 +20,14 @@ public class TextClassifierInvoker {
 
     public static TextClassifier apply(String name, Record[] records) throws InterruptedException {
         DatabaseConfiguration dbConf = ConfigurationFactory.MAPDB.getConfiguration();
+//        DatabaseConfiguration dbConf = ConfigurationFactory.INMEMORY.getConfiguration();
         //Setup Training Parameters
         //-------------------------
         TextClassifier.TrainingParameters trainingParameters = new TextClassifier.TrainingParameters();
 
         //Classifier configuration
-        trainingParameters.setMLmodelClass(BinarizedNaiveBayes.class);
-        trainingParameters.setMLmodelTrainingParameters(new BinarizedNaiveBayes.TrainingParameters());
+        trainingParameters.setMLmodelClass(MultinomialNaiveBayes.class);
+        trainingParameters.setMLmodelTrainingParameters(new MultinomialNaiveBayes.TrainingParameters());
 
         //Set data transfomation configuration
         trainingParameters.setDataTransformerClass(null);
@@ -51,7 +52,7 @@ public class TextClassifierInvoker {
             dataset.add(record);
         }
 
-        classifier.fit(dataset.copy(), trainingParameters);
+        classifier.fit(dataset, trainingParameters);
 
         return classifier;
     }
