@@ -29,7 +29,7 @@ object Main extends LazyLogging {
     "In de brief stond dat hij kon parkeren in de Museumpleingarage!",
     "Ik kon door de marathon mijn huis niet berreiken",
     "Er is nooit plek bij de fietsenrekken",
-    "Mijn belastingaangifte lukt niet!"
+    "Mijn belasting aangifte lukt niet!"
   )
 
   def main(args: Array[String]) {
