@@ -104,8 +104,6 @@ object Main extends LazyLogging {
       //------------------
 
       val classifier = new TextClassifier("GemeenteAfdelingPredictie" + UUID.randomUUID.toString, dbConf)
-      val d = new Dataset(dbConf)
-
 
       val records = cat.map { el =>
         val (key, value) = el
@@ -120,6 +118,8 @@ object Main extends LazyLogging {
             new Record(new AssociativeArray(casted), key)
           }
       }.toStream.flatten
+
+      val d = new Dataset(dbConf)
 
       records foreach { el =>
         d.add(el)
@@ -138,7 +138,10 @@ object Main extends LazyLogging {
         "ik heb een klacht",
         "wtf gebeurt hier",
         "ik wil naar huis",
-        "In de brief stond dat hij kon parkeren in de Museumpleingarage!"
+        "In de brief stond dat hij kon parkeren in de Museumpleingarage!",
+        "Ik kon door de marathon mijn huis niet berreiken",
+        "Er is nooit plek bij de fietsenrekken",
+        "Mijn belastingaangifte lukt niet!"
       ).map { zin =>
         Future {
           val record = classifier.predict(zin)
@@ -153,7 +156,7 @@ object Main extends LazyLogging {
     res foreach { perd =>
       val (zin, rec) = perd
       logger.info(zin)
-      logger.info(rec.getYPredicted.toString)
+      logger.info("hoort bij: " + rec.getYPredicted.toString)
       logger.info(rec.getYPredictedProbabilities.toString)
     }
 
