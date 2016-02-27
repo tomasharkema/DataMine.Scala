@@ -128,31 +128,30 @@ object Main extends LazyLogging {
       }
     }
 
-    val classifiers = Iterator(
+    val predictions = Future.sequence(Iterator(
       (classOf[MultinomialNaiveBayes], new MultinomialNaiveBayes.TrainingParameters()),
       (classOf[BinarizedNaiveBayes], new BinarizedNaiveBayes.TrainingParameters()),
       (classOf[BernoulliNaiveBayes], new BernoulliNaiveBayes.TrainingParameters())
     ).map { c =>
-      val (c1, c2) = c
-      TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + "_" + c1.getName + "_" + UUID.randomUUID.toString, records.toArray, c1, c2)
-    }
-
-    isLearning = false
-
-    logger.info("Trained TextClassifier")
-
-    val predictions = Future.sequence(classifiers.map { classifier =>
-      val c = classifier.getTrainingParameters.getClass.getSimpleName
-      checkSentences.map { zin =>
-        Future {
+      Future {
+        val (c1, c2) = c
+        logger.info("Create " + c1.getSimpleName)
+        TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + "_" + c1.getSimpleName + "_" + UUID.randomUUID.toString, records.toArray, c1, c2)
+      }.map { classifier =>
+        val c = classifier.getTrainingParameters.getClass.getSimpleName
+        checkSentences.map { zin =>
           val record = classifier.synchronized(classifier.predict(zin))
           (c, zin, record)
         }
       }
-    }.flatten)
+    }).map(_.flatten)
+
+    logger.info("Trained TextClassifier")
 
 //    Await.result(categoriesAndCountedWords.map(Future.sequence(_)), Duration.Inf)
     val res = Await.result(predictions, Duration.Inf)
+
+    isLearning = false
 
     res foreach { perd =>
       val (c, zin, rec) = perd
