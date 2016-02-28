@@ -47,6 +47,7 @@ object Main extends LazyLogging {
     val file = if (test) "small.csv" else "klachtendumpgemeente.csv"
 
     Future {
+      Thread.currentThread().setName("Activity Logger Thread")
       while (isLearningObj.synchronized { isLearning }) {
         logger.debug("Is still doing shit " + new Date().toString + " ")
         Thread.sleep(60000)

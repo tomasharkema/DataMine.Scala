@@ -21,18 +21,6 @@ import Helpers._
   */
 object Classifier extends LazyLogging {
 
-  //  = classOf[MultinomialNaiveBayes]
-  //  = new MultinomialNaiveBayes.TrainingParameters()
-
-//  private def prepareDatabase[ML <: BaseMLmodel](name: String,
-//                                  mlmodelClass: Class[_ <: ML],
-//                                  baseMLmodel: BaseMLmodel.TrainingParameters) = {
-//    val dbConf = ConfigurationFactory.MAPDB.getConfiguration
-//    (TextClassifierInvoker.apply(name, mlmodelClass, baseMLmodel, dbConf), dbConf)
-//  }
-
-
-
   def createDatabase[ML <: BaseMLmodel[_ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.ModelParameters, _ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.TrainingParameters, _ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.ValidationMetrics]]
   (name: String, mlmodelClass: Class[_ <: ML], t: BaseMLmodel.TrainingParameters, dbConf: DatabaseConfiguration) = {
 
@@ -87,21 +75,6 @@ object Classifier extends LazyLogging {
   }
 
   private def populateDatabase(database: TextClassifier, dbConf: DatabaseConfiguration, trainingParameters: TextClassifier.TrainingParameters, records: Stream[Future[Record]])(implicit exec: ExecutionContext) = {
-
-    val noItems = 100
-
-//    val groups = records//.grouped(noItems)
-//    val datasets = groups.zipWithIndex.map {
-//      case (recordsGroup, idx) =>
-//        logger.info("=========================================================")
-//        logger.info("add next "+noItems+" items. N = " + idx)
-//        logger.info("=========================================================")
-//        val dataSet = new Dataset(dbConf)
-////
-//        recordsGroup foreach dataSet.add
-//        dataSet
-//    }
-
     val dataSet = new Dataset(dbConf)
 
     val recordsGenerated = Future.sequence(records)
