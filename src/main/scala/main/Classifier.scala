@@ -63,7 +63,7 @@ object Classifier extends LazyLogging {
   }
 
   private def createRecord(idx: Int, key: String, value: String)(implicit exec: ExecutionContext) = Future {
-   logger.info("Create record for " + key + " no " + idx)
+//   logger.info("Create record for " + key + " no " + idx)
     val ex  = TextExtractor.newInstance(classOf[NgramsExtractor], new NgramsExtractor.Parameters())
     val extractedString = ex.extract(value)
     val casted = extractedString.asInstanceOf[java.util.Map[Object, Object]]
