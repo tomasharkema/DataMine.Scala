@@ -37,130 +37,38 @@ object Main extends LazyLogging {
 
     println(args.toSeq)
 
-    val isTest = args.contains("test")
-
-    val file =
-//      if (true) {
-        if(isTest) {
-        "/small.csv"
-      } else {
-      "/klachtendumpgemeente.csv"
-      }
-
-    logger.info("Load file " + file)
-
-    val stream =  Future { getClass.getResourceAsStream(file) }
-    val lines = stream.flatMap { stream =>
-      logger.info("Load loaded. Read it.")
-      Future { scala.io.Source.fromInputStream(stream).getLines }
-    }
-    val rows = lines.flatMap { lines =>
-      logger.info("Got lines. Parsing it")
-      Future { lines.map(SeparatorIterator(_, ";")) drop 1 map { _ map replaceIrregularities } }
-    }
-    logger.info("Parsed lines. Crunching it")
-
-    val categoriesAndInput = rows.map { rows =>
-      rows.map { el =>
-        val e = el.toStream
-        new {
-          val key = e.head
-          val value = e.slice(1, 4)
-        }
-      }.toStream.groupByKeyAndValue(_.key)(_.value.toStream)
-    }
-
-//    val categoriesAndCountedWords = categoriesAndInput.map { categoriesAndInput =>
-//      categoriesAndInput.map { el =>
-//        Future {
-//          (el._1, el._2
-//            .map(_.replaceAll("\\.", " ")
-//              .replaceAll("\\,", " ")
-//              .replaceAll("\n", " "))
-//            .flatMap(WordCount.countWords))
-//        }
-//      }
-//    }
-
-    val loggerSync = new Object
-
-//    categoriesAndCountedWords.map { categoriesAndWords => categoriesAndWords.foreach { l =>
-//      l.map { l =>
-//        loggerSync.synchronized {
-//          logger.debug("-------")
-//          logger.debug("ONDERWERP: " + l._1)
-//          logger.debug("top 5 words")
-//          l._2.toSeq take 5 foreach (el => logger.debug(el._1 + " keer: " + el._2))
-//          logger.debug("-------")
-//        }
-//      }
-//    }}
-
-    val trainedSets = categoriesAndInput.flatMap { cat =>
-      logger.info("Training TextClassifier")
-
-      val records = cat.map { el =>
-        val (key, value) = el
-        value.filter(_ != "")
-          .map(_.replaceAll("\\.", "")
-            .replaceAll("\\,", "")
-            .replaceAll("\n", " "))
-          .map { string =>
-            val ex  = TextExtractor.newInstance(classOf[NgramsExtractor], new NgramsExtractor.Parameters())
-            val extractedString = ex.extract(string)
-            val casted = extractedString.asInstanceOf[java.util.Map[Object, Object]]
-            new Record(new AssociativeArray(casted), key)
-          }
-      }.toStream.flatten
-
-      Future(records)
-    }
-
-    val records = Await.result(trainedSets, Duration.Inf)
+    val test = args.contains("test")
+    val learn = args.contains("learn")
 
     var isLearning = true
     val isLearningObj = new Object
 
+    val databaseName = (if (test) "TEST_" else "") + "GemeenteClassify"
+    val file = if (test) "small.csv" else "klachtendumpgemeente.csv"
+
     Future {
       while (isLearningObj.synchronized { isLearning }) {
-        logger.debug("Is still learning " + new Date().toString)
-        Thread.sleep(30000)
+        logger.debug("Is still doing shit " + new Date().toString + " ")
+        Thread.sleep(60000)
       }
     }
 
-    val classifiers = Iterator(
-      (classOf[MultinomialNaiveBayes], new MultinomialNaiveBayes.TrainingParameters()),
-      (classOf[BinarizedNaiveBayes], new BinarizedNaiveBayes.TrainingParameters()),
-      (classOf[BernoulliNaiveBayes], new BernoulliNaiveBayes.TrainingParameters())
-    ).map { c =>
-      val (c1, c2) = c
-      TextClassifierInvoker.apply("GemeenteAfdelingPredictie" + "_" + c1.getName + "_" + UUID.randomUUID.toString, records.toArray, c1, c2)
-    }
-
-    isLearning = false
-
-    logger.info("Trained TextClassifier")
-
-    val predictions = Future.sequence(classifiers.map { classifier =>
-      val c = classifier.getTrainingParameters.getClass.getSimpleName
-      checkSentences.map { zin =>
-        Future {
-          val record = classifier.synchronized(classifier.predict(zin))
-          (c, zin, record)
-        }
+    if (learn) {
+      logger.info("Learn")
+      val learnResults = Await.result(Classifier.learn(databaseName, file), Duration.Inf)
+      logger.info(learnResults.toString)
+    } else {
+      logger.info("Classify")
+      val classifyResults = Await.result(Classifier.classify(databaseName, checkSentences), Duration.Inf)
+      classifyResults foreach { perd =>
+        val (c, zin, rec) = perd
+        logger.info(zin + " from: " + c)
+        logger.info("hoort bij: " + rec.getYPredicted.toString)
+        logger.info(rec.getYPredictedProbabilities.toString)
       }
-    }.flatten)
-
-//    Await.result(categoriesAndCountedWords.map(Future.sequence(_)), Duration.Inf)
-    val res = Await.result(predictions, Duration.Inf)
-
-    res foreach { perd =>
-      val (c, zin, rec) = perd
-      logger.info(zin + " from: " + c)
-      logger.info("hoort bij: " + rec.getYPredicted.toString)
-      logger.info(rec.getYPredictedProbabilities.toString)
     }
 
+    isLearningObj.synchronized { isLearning = false }
 
     logger.info("Done")
   }

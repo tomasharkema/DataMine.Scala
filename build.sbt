@@ -33,3 +33,5 @@ javaOptions in run ++= Seq(
   "-XX:MaxPermSize=2g",
   "-XX:+UseConcMarkSweepGC"
 )
+
+parallelExecution in Test := false

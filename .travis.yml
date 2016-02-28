@@ -5,4 +5,5 @@ jdk:
   - oraclejdk8
 script:
   - sbt coverage test
-  - sbt run
+  - sbt "run learn"
+  - sbt "run classify"

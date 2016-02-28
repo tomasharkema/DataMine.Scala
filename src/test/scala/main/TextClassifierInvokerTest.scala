@@ -21,7 +21,7 @@ class TextClassifierInvokerTest extends Specification {
 
       val la = Array(new Record(new AssociativeArray(casted), "A"))
 
-      val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictieTest" + UUID.randomUUID.toString, la, classOf[MultinomialNaiveBayes], new MultinomialNaiveBayes.TrainingParameters())
+//      val classifier = TextClassifierInvoker.apply("GemeenteAfdelingPredictieTest" + UUID.randomUUID.toString, la, classOf[MultinomialNaiveBayes], new MultinomialNaiveBayes.TrainingParameters())
 
 //      println(classifier)
 
