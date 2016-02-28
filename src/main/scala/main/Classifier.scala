@@ -1,5 +1,7 @@
 package main
 
+import java.util.concurrent.Executors
+
 import com.datumbox.applications.nlp.TextClassifier
 import com.datumbox.common.dataobjects.{Dataset, AssociativeArray, Record}
 import com.datumbox.common.persistentstorage.ConfigurationFactory
@@ -101,14 +103,15 @@ object Classifier extends LazyLogging {
     } yield populatedDatabase
   }
 
-  def classify(databaseName: String,sentences: Iterator[String])(implicit exec: ExecutionContext) = Future {
-    val c = classOf[MultinomialNaiveBayes]
-    val params = new MultinomialNaiveBayes.TrainingParameters()
+  def classify(databaseName: String, sentences: Stream[String])(implicit exec: ExecutionContext) = {
+    sentences.map(sentence => Future {
+      val c = classOf[MultinomialNaiveBayes]
+      val params = new MultinomialNaiveBayes.TrainingParameters()
 
-    val dbConf = ConfigurationFactory.MAPDB.getConfiguration
-    val (database, _) = createDatabase(databaseName, c, params, dbConf)
-
-    sentences.map(sentence => (c.getClass.getSimpleName, sentence, database.predict(sentence)))
+      val dbConf = ConfigurationFactory.MAPDB.getConfiguration
+      val (database, _) = createDatabase(databaseName, c, params, dbConf)
+      (c.getClass.getSimpleName, sentence, database.predict(sentence))
+    })
   }
 
 }
