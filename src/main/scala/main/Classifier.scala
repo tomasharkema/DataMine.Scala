@@ -48,7 +48,7 @@ object Classifier extends LazyLogging {
     trainingParameters.setTextExtractorClass(classOf[NgramsExtractor])
     trainingParameters.setTextExtractorParameters(new NgramsExtractor.Parameters)
 
-    val dbName = name + "_" + modelerClass.getSimpleName
+    val dbName = name + "A"
 
     val classifier = new TextClassifier(dbName, configuration)
 
@@ -67,7 +67,7 @@ object Classifier extends LazyLogging {
 
     rows.map { el =>
       val e = el.toStream
-      CsvLine(e.head, e.slice(1, 4))
+      CsvLine(e.head.toLowerCase.replaceAll(" ", ""), e.slice(1, 4))
     }.toStream
   }
 
@@ -78,7 +78,7 @@ object Classifier extends LazyLogging {
     val ex  = AbstractTextExtractor.newInstance(classOf[NgramsExtractor], new NgramsExtractor.Parameters())
     val extractedString = ex.extract(value)
     val casted = extractedString.asInstanceOf[java.util.Map[Object, Object]]
-    new Record(new AssociativeArray(casted), key.toLowerCase.replaceAll(" ", ""))
+    new Record(new AssociativeArray(casted), key)
   }
 
   private def assembleRecords(data: Map[String, Stream[String]])(implicit exec: ExecutionContext): Future[Stream[Future[Record]]] = Future {
@@ -116,17 +116,32 @@ object Classifier extends LazyLogging {
     } yield populatedDatabase
   }
 
-  def classify(dbName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Stream[ClassifyResult] = {//Future[Stream[ClassifyResult]] = {
-    val (_, classifier, _) = createConfiguration(dbName)
+  var _dbForThreadMap = Map[String, TextClassifier]()
+  private def dbForThread(dbName: String): TextClassifier = {
+    val threadName = Thread.currentThread().getName
+    _dbForThreadMap.get(threadName) match {
+      case Some(db) =>
+        db
+
+      case None =>
+        _dbForThreadMap.synchronized {
+          val (_, classifier, _) = createConfiguration(dbName)
+          _dbForThreadMap = _dbForThreadMap updated(threadName, classifier)
+          classifier
+        }
+    }
+  }
+
+
+  def classify(dbName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Future[Stream[ClassifyResult]] = {
     val futures = lines.map { csvLine =>
-//      Future {
+      Future {
         val sentence = csvLine.value.head
-        ClassifyResult(csvLine.key, sentence, classifier.predict(sentence.replaceAll("\n", " ")))
-//      }
+        ClassifyResult(csvLine.key, sentence, dbForThread(dbName).predict(sentence.replaceAll("\n", " ")))
+      }
     }
 
-//    Future.sequence(futures)
-    futures
+    Future.sequence(futures)
   }
 
 }

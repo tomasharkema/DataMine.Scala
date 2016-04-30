@@ -66,15 +66,20 @@ object Main extends LazyLogging {
       logger.info("Classify")
       val entries = Classifier.prepareCSV(file).takeLastHalf
       val classifierResults = Classifier.classify(databaseName, entries)
-//      val classifyResults: Stream[ClassifyResult] = Await.result(classifierResults, Duration.Inf)
-      classifierResults foreach println
+      val classifyResults: Stream[ClassifyResult] = Await.result(classifierResults, Duration.Inf)
+      val correctItems = classifyResults.groupBy(_.isCorrect)
+
+      val n = classifyResults.length
+      val correct = correctItems.get(true).get.length
+      val percentage = (correct.toFloat / n.toFloat) * 100
+
+      logger.info("SCORE: n: " + n + " correct: " + correct)
+      logger.info("Percentage: " + percentage + "%")
     }
 
     isLearning.set(false)
 
     logger.info("Done")
-
-//    System.exit(0)
   }
 
 }

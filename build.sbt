@@ -27,13 +27,10 @@ ScoverageSbtPlugin.ScoverageKeys.coverageFailOnMinimum := true
 
 ScoverageSbtPlugin.ScoverageKeys.coverageHighlighting := true
 
-//fork in run := true
-//
-//javaOptions in run ++= Seq(
-//  "-Xms2G",
-//  "-Xmx2G",
-//  "-XX:MaxPermSize=2g",
-//  "-XX:+UseConcMarkSweepGC"
-//)
+fork in run := true
+
+javaOptions in run ++= Seq(
+  "-XX:+UseConcMarkSweepGC"
+)
 
 parallelExecution in Test := false
