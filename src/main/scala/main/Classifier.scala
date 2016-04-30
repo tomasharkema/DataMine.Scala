@@ -1,23 +1,51 @@
 package main
 
 import java.io.File
-import java.security.MessageDigest
+import java.util.regex.Pattern
 
 import com.datumbox.framework.applications.nlp.TextClassifier
 import com.datumbox.framework.applications.nlp.TextClassifier.TrainingParameters
 import com.datumbox.framework.common.Configuration
-import com.datumbox.framework.common.dataobjects.{Dataframe, AssociativeArray, Record}
+import com.datumbox.framework.common.dataobjects.{AssociativeArray, Dataframe, Record}
 import com.datumbox.framework.common.persistentstorage.mapdb.MapDBConfiguration
 import com.datumbox.framework.core.machinelearning.classification.{BernoulliNaiveBayes, BinarizedNaiveBayes, MultinomialNaiveBayes}
 import com.datumbox.framework.core.machinelearning.featureselection.categorical.ChisquareSelect
 import com.datumbox.framework.core.utilities.text.extractors.{AbstractTextExtractor, NgramsExtractor}
 import com.typesafe.scalalogging.LazyLogging
-import main.ClassifierType.ClassifierTypeString
+import main.Helpers._
 import main.Main._
-import Helpers._
-import scala.concurrent.{Future, ExecutionContext}
 
-case class CsvLine(key: String, value: Stream[String])
+import scala.concurrent.{ExecutionContext, Future}
+
+case class CsvLine(key: String, value: String)
+
+object CsvLine {
+  def fromRawInput(key: String, value: String) = {
+    CsvLine(key
+      .toLowerCase
+      .replaceAll(" ", "")
+      .trim
+
+      , value
+        .toLowerCase
+        .replaceAll(Pattern.quote("<br>"), " ")
+        .replaceAll(Pattern.quote("<wbr>"), " ")
+        .replaceAll(Pattern.quote("<br />"), " ")
+        .replaceAll(Pattern.quote("<wbr />"), " ")
+        .replaceAll(Pattern.quote("."), "")
+        .replaceAll(Pattern.quote(","), "")
+        .replaceAll(Pattern.quote(";"), "")
+        .replaceAll(Pattern.quote(":"), "")
+        .replaceAll(Pattern.quote("("), "")
+        .replaceAll(Pattern.quote(")"), "")
+        .replaceAll(Pattern.quote("\n"), "")
+        .replaceAll(Pattern.quote("\'"), "")
+        .replaceAll(Pattern.quote("\""), "")
+        .replaceAll(Pattern.quote("  "), "")
+        .replaceAll(Pattern.quote("   "), ""))
+  }
+}
+
 case class ClassifyResult(key: String, sentence: String, record: Record) {
   def isCorrect: Boolean = key == record.getYPredicted.toString
 }
@@ -85,12 +113,14 @@ object Classifier extends LazyLogging {
 
     rows.map { el =>
       val e = el.toStream
-      CsvLine(e.head.toLowerCase.replaceAll(" ", ""), e.slice(1, 4))
+      CsvLine.fromRawInput(e.head, e.slice(1, 4).reduceLeft { (prev, element) =>
+        prev + " " + element
+      })
     }.toStream
   }
 
   private def csvGroupByKey(stream: Stream[CsvLine]): Map[String, Stream[String]] =
-    stream.groupByKeyAndValue(_.key)(_.value.toStream)
+    stream.groupByKeyAndValue(_.key) { el =>  Stream(el.value) }
 
   private def createRecord(idx: Int, key: String, value: String)(implicit exec: ExecutionContext) = Future {
     val ex  = AbstractTextExtractor.newInstance(classOf[NgramsExtractor], new NgramsExtractor.Parameters())
@@ -150,8 +180,7 @@ object Classifier extends LazyLogging {
   def classify(dbName: String, lines: Stream[CsvLine], strategyClass: StrategyClass)(implicit exec: ExecutionContext): Future[Stream[ClassifyResult]] = {
     val futures = lines.map { csvLine =>
       Future {
-        val sentence = csvLine.value.head
-        ClassifyResult(csvLine.key, sentence, dbForThread(dbName, strategyClass).predict(sentence.replaceAll("\n", " ")))
+        ClassifyResult(csvLine.key, csvLine.value, dbForThread(dbName, strategyClass).predict(csvLine.value))
       }
     }
 

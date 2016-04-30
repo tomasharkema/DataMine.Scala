@@ -3,12 +3,7 @@ package main
 import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
 
-import com.datumbox.framework.core.machinelearning.featureselection.categorical.{ChisquareSelect, MutualInformation}
-import com.datumbox.framework.core.utilities.text.extractors.{NgramsExtractor, UniqueWordSequenceExtractor, WordSequenceExtractor}
 import com.typesafe.scalalogging.LazyLogging
-import main.ClassifierType.ClassifierTypeString
-import main.FeatureSelect.FeatureSelectTypeString
-import main.TextExtractorType.TextExtractorTypeString
 import main.helpers.StreamHelpers._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -41,11 +36,11 @@ object Main extends LazyLogging {
       }
     }
 
-    val classifiers: Seq[ClassifierType] = Seq(Multinomial, Binarized, Bernoulli)
+    val classifiers: Seq[ClassifierType] = Seq(Multinomial, Binarized, Bernoulli).take(1)
 
-    val featureSelector: Seq[FeatureSelectType] = Seq(Chisquare, MutualInformation)
+    val featureSelector: Seq[FeatureSelectType] = Seq(Chisquare, MutualInformation).take(1)
 
-    val textExtractors: Seq[TextExtractorType] = Seq(Ngrams, UniqueWordSequence, WordSequence)
+    val textExtractors: Seq[TextExtractorType] = Seq(Ngrams, UniqueWordSequence, WordSequence).take(1)
 
     val types = classifiers.flatMap { c =>
       featureSelector.flatMap { f =>
