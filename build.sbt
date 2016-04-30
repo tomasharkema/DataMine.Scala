@@ -14,8 +14,10 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-api" % "1.7.6",
   "org.slf4j" % "log4j-over-slf4j" % "1.7.6",
   "ch.qos.logback" % "logback-classic" % "1.0.3",
-
-  "com.datumbox" % "datumbox-framework" % "0.6.1"
+  "com.datumbox" % "datumbox-framework-lib" % "0.7.0",
+  "com.datumbox" % "datumbox-framework-core" % "0.7.0",
+  "com.datumbox" % "datumbox-framework-common" % "0.7.0",
+  "com.datumbox" % "datumbox-framework-applications" % "0.7.0"
 )
 
 scalacOptions in Test ++= Seq("-Yrangepos")

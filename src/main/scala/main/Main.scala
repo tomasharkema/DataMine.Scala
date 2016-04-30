@@ -6,12 +6,9 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import java.util.{Date, UUID}
 
 import Helpers._
-import com.datumbox.applications.nlp.TextClassifier
-import com.datumbox.common.dataobjects.{AssociativeArray, Record, Dataset}
-import com.datumbox.common.persistentstorage.ConfigurationFactory
-import com.datumbox.framework.machinelearning.classification.{BernoulliNaiveBayes, MultinomialNaiveBayes, BinarizedNaiveBayes}
-import com.datumbox.framework.machinelearning.featureselection.categorical.ChisquareSelect
-import com.datumbox.framework.utilities.text.extractors.{TextExtractor, NgramsExtractor}
+import com.datumbox.framework.core.machinelearning.classification.{MultinomialNaiveBayes, BinarizedNaiveBayes, BernoulliNaiveBayes}
+import com.datumbox.framework.core.machinelearning.featureselection.categorical.{MutualInformation, ChisquareSelect}
+import com.datumbox.framework.core.utilities.text.extractors.{WordSequenceExtractor, UniqueWordSequenceExtractor, NgramsExtractor}
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.duration.Duration
@@ -21,8 +18,8 @@ import scala.util.{Failure, Success}
 import helpers.StreamHelpers._
 
 object Main extends LazyLogging {
-
-  implicit val exec = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
+  import scala.concurrent.ExecutionContext.Implicits.global
+//  implicit val exec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors))
 
   def replaceIrregularities(string: String) = string
     .replaceAll("<br />", "\n")
@@ -48,12 +45,28 @@ object Main extends LazyLogging {
       }
     }
 
+    val classifiers = Iterator(
+      (classOf[MultinomialNaiveBayes], new MultinomialNaiveBayes.TrainingParameters()),
+      (classOf[BinarizedNaiveBayes], new BinarizedNaiveBayes.TrainingParameters()),
+      (classOf[BernoulliNaiveBayes], new BernoulliNaiveBayes.TrainingParameters()))
+
+    val featureSelector = Iterator(
+      (classOf[ChisquareSelect], new ChisquareSelect.TrainingParameters),
+      (classOf[MutualInformation], new MutualInformation.TrainingParameters)
+    )
+
+    val textExtractors = Iterator(
+      (classOf[NgramsExtractor], new NgramsExtractor.Parameters),
+      (classOf[UniqueWordSequenceExtractor], new UniqueWordSequenceExtractor.Parameters),
+      (classOf[WordSequenceExtractor], new WordSequenceExtractor.Parameters)
+    )
+
     if (learn) {
       logger.info("Learn")
 
       val learnResFuture = Classifier.prepareCSV(file)
         .map { _.takeFirstHalf }
-        .flatMap { Classifier.learn(databaseName, _) }
+        .flatMap { entries => Classifier.learn(databaseName, entries) }
       val learnResults = Await.result(learnResFuture, Duration.Inf)
       logger.info(learnResults.toString)
     } else {
@@ -61,8 +74,7 @@ object Main extends LazyLogging {
       val classifierResults =
         Classifier.prepareCSV(file)
           .map { _.takeLastHalf }
-          .map { Classifier.classify(databaseName, _) }
-          .flatMap { Future.sequence(_) }
+          .map { entries => Classifier.classify(databaseName, entries) }
 
       val classifyResults = Await.result(classifierResults, Duration.Inf)
       classifyResults foreach println
@@ -71,6 +83,8 @@ object Main extends LazyLogging {
     isLearning.set(false)
 
     logger.info("Done")
+
+    System.exit(0)
   }
 
 }

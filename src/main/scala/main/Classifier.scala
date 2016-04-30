@@ -1,42 +1,53 @@
 package main
 
-import java.util.concurrent.Executors
-
-import com.datumbox.applications.nlp.TextClassifier
-import com.datumbox.common.dataobjects.{Dataset, AssociativeArray, Record}
-import com.datumbox.common.persistentstorage.ConfigurationFactory
-import com.datumbox.common.persistentstorage.interfaces.DatabaseConfiguration
-import com.datumbox.framework.machinelearning.classification.MultinomialNaiveBayes
-import com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel
-import com.datumbox.framework.machinelearning.featureselection.categorical.ChisquareSelect
-import com.datumbox.framework.utilities.text.extractors.{NgramsExtractor, TextExtractor}
+import com.datumbox.framework.applications.nlp.TextClassifier
+import com.datumbox.framework.applications.nlp.TextClassifier.TrainingParameters
+import com.datumbox.framework.common.Configuration
+import com.datumbox.framework.common.dataobjects.{Dataframe, AssociativeArray, Record}
+import com.datumbox.framework.common.persistentstorage.mapdb.MapDBConfiguration
+import com.datumbox.framework.core.machinelearning.classification.MultinomialNaiveBayes
+import com.datumbox.framework.core.machinelearning.common.abstracts.modelers.AbstractModeler
+import com.datumbox.framework.core.machinelearning.featureselection.categorical.ChisquareSelect
+import com.datumbox.framework.core.utilities.text.extractors.{AbstractTextExtractor, NgramsExtractor}
 import com.typesafe.scalalogging.LazyLogging
 import main.Main._
-
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
-
 import Helpers._
 
+import scala.concurrent.{Future, ExecutionContext}
+
 case class CsvLine(key: String, value: Stream[String])
-case class ClassifyResult(key: String, sentence: String, record: Record)
+case class ClassifyResult(key: String, sentence: String, record: Record) {
+  def isCorrect: Boolean = key == record.getYPredicted.toString
+}
 
 object Classifier extends LazyLogging {
 
-  def createDatabase[ML <: BaseMLmodel[_ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.ModelParameters, _ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.TrainingParameters, _ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.ValidationMetrics]]
-  (name: String, mlmodelClass: Class[_ <: ML], t: BaseMLmodel.TrainingParameters, dbConf: DatabaseConfiguration) = {
+  def createConfiguration(name: String) = {
+    val configuration = Configuration.getConfiguration
+    configuration.setDbConfig(new MapDBConfiguration())
+    configuration.getConcurrencyConfig.setMaxNumberOfThreadsPerTask(0)
+    configuration.getConcurrencyConfig.setParallelized(true)
 
-    val trainingParameters: TextClassifier.TrainingParameters = new TextClassifier.TrainingParameters
-    trainingParameters.setMLmodelClass(mlmodelClass)
-    trainingParameters.setMLmodelTrainingParameters(t)
+    val modelerClass = classOf[MultinomialNaiveBayes]
+    val modelerParameters = new MultinomialNaiveBayes.TrainingParameters()
+
+    val trainingParameters = new TrainingParameters()
+    trainingParameters.setModelerClass(modelerClass)
+    trainingParameters.setModelerTrainingParameters(modelerParameters)
     trainingParameters.setDataTransformerClass(null)
     trainingParameters.setDataTransformerTrainingParameters(null)
-    trainingParameters.setFeatureSelectionClass(classOf[ChisquareSelect])
-    trainingParameters.setFeatureSelectionTrainingParameters(new ChisquareSelect.TrainingParameters)
+    trainingParameters.setFeatureSelectorClass(classOf[ChisquareSelect])
+    trainingParameters.setFeatureSelectorTrainingParameters(new ChisquareSelect.TrainingParameters)
     trainingParameters.setTextExtractorClass(classOf[NgramsExtractor])
     trainingParameters.setTextExtractorParameters(new NgramsExtractor.Parameters)
 
-    (new TextClassifier(name, dbConf), trainingParameters)
+    val dbName = name + "_" + modelerClass.getSimpleName
+
+    val classifier = new TextClassifier(dbName, configuration)
+
+    logger.info("Created db with name: " + dbName)
+
+    (configuration, classifier, trainingParameters)
   }
 
   def prepareCSV(file: String)(implicit exec: ExecutionContext): Future[Stream[CsvLine]] = {
@@ -65,26 +76,30 @@ object Classifier extends LazyLogging {
     stream.groupByKeyAndValue(_.key)(_.value.toStream)
 
   private def createRecord(idx: Int, key: String, value: String)(implicit exec: ExecutionContext) = Future {
-//   logger.info("Create record for " + key + " no " + idx)
-    val ex  = TextExtractor.newInstance(classOf[NgramsExtractor], new NgramsExtractor.Parameters())
+    val ex  = AbstractTextExtractor.newInstance(classOf[NgramsExtractor], new NgramsExtractor.Parameters())
     val extractedString = ex.extract(value)
     val casted = extractedString.asInstanceOf[java.util.Map[Object, Object]]
-    new Record(new AssociativeArray(casted), key)
+    new Record(new AssociativeArray(casted), key.toLowerCase.replaceAll(" ", ""))
   }
 
   private def assembleRecords(data: Map[String, Stream[String]])(implicit exec: ExecutionContext): Future[Stream[Future[Record]]] = Future {
     data.zipWithIndex.map { case ((key, values), idx) => values.map(createRecord(idx, key, _)) }.toStream.flatten
   }
 
-  private def populateDatabase(database: TextClassifier, dbConf: DatabaseConfiguration, trainingParameters: TextClassifier.TrainingParameters, records: Stream[Future[Record]])(implicit exec: ExecutionContext) = {
-    val dataSet = new Dataset(dbConf)
+  private def populateDatabase(database: TextClassifier, configuration: Configuration, trainingParameters: TrainingParameters, records: Stream[Future[Record]])
+                              (implicit exec: ExecutionContext) = {
+    val dataFrame = new Dataframe(configuration)
 
     val recordsGenerated = Future.sequence(records)
 
     recordsGenerated map { rds =>
-      rds foreach dataSet.add
+      rds foreach dataFrame.add
       logger.info("Fitting database")
-      database.fit(dataSet, trainingParameters)
+      database.fit(dataFrame, trainingParameters)
+
+      val vm = database.validate(dataFrame)
+      database.setValidationMetrics(vm)
+
       database
     }
   }
@@ -93,28 +108,25 @@ object Classifier extends LazyLogging {
     val c = classOf[MultinomialNaiveBayes]
     val params = new MultinomialNaiveBayes.TrainingParameters()
 
-    val dbConf = ConfigurationFactory.MAPDB.getConfiguration
-    val (database, trainingParameters) = createDatabase(databaseName, c, params, dbConf)
+    val (conf, classifier, trainingParameters) = createConfiguration(databaseName)
 
     for {
       grouped <- Future { csvGroupByKey(csvEntries) }
       records <- assembleRecords(grouped)
-      populatedDatabase <- populateDatabase(database, dbConf, trainingParameters, records)
+      populatedDatabase <- populateDatabase(classifier, conf, trainingParameters, records)
     } yield populatedDatabase
   }
 
-  def classify(databaseName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext) = {
-    lines.map(csvLine => Future {
-      val c = classOf[MultinomialNaiveBayes]
-      val params = new MultinomialNaiveBayes.TrainingParameters()
-
-      val dbConf = ConfigurationFactory.MAPDB.getConfiguration
-      val (database, _) = createDatabase(databaseName, c, params, dbConf)
-
-      csvLine.value.map { sentence =>
-        ClassifyResult(csvLine.key, sentence, database.predict(sentence))
-      }
-    })
+  def classify(databaseName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Future[Stream[ClassifyResult]] = {
+    val (_, classifier, _) = createConfiguration(databaseName)
+    Future {
+      lines.flatMap(csvLine =>
+        csvLine.value.map { sentence =>
+          logger.info("predicting: " + sentence)
+          ClassifyResult(csvLine.key, sentence, classifier.predict(sentence.replaceAll("\n", " ")))
+        }
+      )
+    }
   }
 
 }
