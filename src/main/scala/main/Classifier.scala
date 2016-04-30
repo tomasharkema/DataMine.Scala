@@ -14,7 +14,7 @@ import com.datumbox.framework.core.utilities.text.extractors.{AbstractTextExtrac
 import com.typesafe.scalalogging.LazyLogging
 import main.Helpers._
 import main.Main._
-
+import helpers.StopWords._
 import scala.concurrent.{ExecutionContext, Future}
 
 case class CsvLine(key: String, value: String)
@@ -28,6 +28,7 @@ object CsvLine {
 
       , value
         .toLowerCase
+        .filterStopWords
         .replaceAll(Pattern.quote("<br>"), " ")
         .replaceAll(Pattern.quote("<wbr>"), " ")
         .replaceAll(Pattern.quote("<br />"), " ")
