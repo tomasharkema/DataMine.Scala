@@ -32,11 +32,11 @@ object Main extends LazyLogging {
       }
     }
 
-    val classifiers: Seq[ClassifierType] = Seq(Multinomial, Binarized, Bernoulli).take(1)
+    val classifiers: Seq[ClassifierType] = Seq(Multinomial, Binarized, Bernoulli)
 
-    val featureSelector: Seq[FeatureSelectType] = Seq(Chisquare, MutualInformation).take(1)
+    val featureSelector: Seq[FeatureSelectType] = Seq(Chisquare, MutualInformation)
 
-    val textExtractors: Seq[TextExtractorType] = Seq(Ngrams, UniqueWordSequence, WordSequence).take(1)
+    val textExtractors: Seq[TextExtractorType] = Seq(Ngrams, UniqueWordSequence, WordSequence)
 
     val types = classifiers.flatMap { c =>
       featureSelector.flatMap { f =>
