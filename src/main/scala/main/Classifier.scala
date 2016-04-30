@@ -1,5 +1,7 @@
 package main
 
+import java.io.File
+
 import com.datumbox.framework.applications.nlp.TextClassifier
 import com.datumbox.framework.applications.nlp.TextClassifier.TrainingParameters
 import com.datumbox.framework.common.Configuration
@@ -22,7 +24,14 @@ object Classifier extends LazyLogging {
 
   def createConfiguration(name: String) = {
     val configuration = Configuration.getConfiguration
-    configuration.setDbConfig(new MapDBConfiguration())
+    val mapDBConfiguration = new MapDBConfiguration()
+
+    val folder = "./database"
+    val folderRef = new File(folder)
+    folderRef.mkdir()
+
+    mapDBConfiguration.setOutputFolder(folder)
+    configuration.setDbConfig(mapDBConfiguration)
     configuration.getConcurrencyConfig.setMaxNumberOfThreadsPerTask(0)
     configuration.getConcurrencyConfig.setParallelized(true)
 
