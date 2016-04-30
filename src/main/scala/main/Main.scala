@@ -3,10 +3,12 @@ package main
 import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
 
-import com.datumbox.framework.core.machinelearning.classification.{BernoulliNaiveBayes, BinarizedNaiveBayes, MultinomialNaiveBayes}
 import com.datumbox.framework.core.machinelearning.featureselection.categorical.{ChisquareSelect, MutualInformation}
 import com.datumbox.framework.core.utilities.text.extractors.{NgramsExtractor, UniqueWordSequenceExtractor, WordSequenceExtractor}
 import com.typesafe.scalalogging.LazyLogging
+import main.ClassifierType.ClassifierTypeString
+import main.FeatureSelect.FeatureSelectTypeString
+import main.TextExtractorType.TextExtractorTypeString
 import main.helpers.StreamHelpers._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -39,42 +41,50 @@ object Main extends LazyLogging {
       }
     }
 
-    val classifiers = Iterator(
-      (classOf[MultinomialNaiveBayes], new MultinomialNaiveBayes.TrainingParameters()),
-      (classOf[BinarizedNaiveBayes], new BinarizedNaiveBayes.TrainingParameters()),
-      (classOf[BernoulliNaiveBayes], new BernoulliNaiveBayes.TrainingParameters()))
+    val classifiers: Seq[ClassifierType] = Seq(Multinomial, Binarized, Bernoulli)
 
-    val featureSelector = Iterator(
-      (classOf[ChisquareSelect], new ChisquareSelect.TrainingParameters),
-      (classOf[MutualInformation], new MutualInformation.TrainingParameters)
-    )
+    val featureSelector: Seq[FeatureSelectType] = Seq(Chisquare, MutualInformation)
 
-    val textExtractors = Iterator(
-      (classOf[NgramsExtractor], new NgramsExtractor.Parameters),
-      (classOf[UniqueWordSequenceExtractor], new UniqueWordSequenceExtractor.Parameters),
-      (classOf[WordSequenceExtractor], new WordSequenceExtractor.Parameters)
-    )
+    val textExtractors: Seq[TextExtractorType] = Seq(Ngrams, UniqueWordSequence, WordSequence)
+
+    val types = classifiers.flatMap { c =>
+      featureSelector.flatMap { f =>
+        textExtractors.map { te =>
+          StrategyClass(c, f, te)
+        }
+      }
+    }
 
     if (learn) {
       logger.info("Learn")
-
-      val entries = Classifier.prepareCSV(file).takeFirstHalf
-      val classifier = Classifier.learn(databaseName, entries)
-      val learnResults = Await.result(classifier, Duration.Inf)
+      val results = types.map { strategy =>
+        val entries = Classifier.prepareCSV(file).takeFirstHalf
+        Classifier.learn(databaseName, entries, strategy)
+      }
+      val learnResults = Await.result(Future.sequence(results), Duration.Inf)
       logger.info(learnResults.toString)
     } else {
       logger.info("Classify")
-      val entries = Classifier.prepareCSV(file).takeLastHalf
-      val classifierResults = Classifier.classify(databaseName, entries)
-      val classifyResults: Stream[ClassifyResult] = Await.result(classifierResults, Duration.Inf)
-      val correctItems = classifyResults.groupBy(_.isCorrect)
 
-      val n = classifyResults.length
-      val correct = correctItems.get(true).get.length
-      val percentage = (correct.toFloat / n.toFloat) * 100
+      val results = types.map { strategy =>
+        val entries = Classifier.prepareCSV(file).takeLastHalf
+        Classifier.classify(databaseName, entries, strategy).map {
+          (_, strategy)
+        }
+      }
 
-      logger.info("SCORE: n: " + n + " correct: " + correct)
-      logger.info("Percentage: " + percentage + "%")
+      val classifyResults = Await.result(Future.sequence(results), Duration.Inf)
+
+      classifyResults.foreach { element =>
+        val (classifyResults, strategy) = element
+        val n = classifyResults.length
+        val correctItems = classifyResults.groupBy(_.isCorrect)
+        val correct = correctItems.get(true).get.length
+        val percentage = (correct.toFloat / n.toFloat) * 100
+        logger.info("STRATEGY: " + strategy)
+        logger.info("SCORE: n: " + n + " correct: " + correct)
+        logger.info("Percentage: " + percentage + "%")
+      }
     }
 
     isLearning.set(false)

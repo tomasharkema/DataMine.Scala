@@ -1,16 +1,18 @@
 package main
 
 import java.io.File
+import java.security.MessageDigest
 
 import com.datumbox.framework.applications.nlp.TextClassifier
 import com.datumbox.framework.applications.nlp.TextClassifier.TrainingParameters
 import com.datumbox.framework.common.Configuration
 import com.datumbox.framework.common.dataobjects.{Dataframe, AssociativeArray, Record}
 import com.datumbox.framework.common.persistentstorage.mapdb.MapDBConfiguration
-import com.datumbox.framework.core.machinelearning.classification.MultinomialNaiveBayes
+import com.datumbox.framework.core.machinelearning.classification.{BernoulliNaiveBayes, BinarizedNaiveBayes, MultinomialNaiveBayes}
 import com.datumbox.framework.core.machinelearning.featureselection.categorical.ChisquareSelect
 import com.datumbox.framework.core.utilities.text.extractors.{AbstractTextExtractor, NgramsExtractor}
 import com.typesafe.scalalogging.LazyLogging
+import main.ClassifierType.ClassifierTypeString
 import main.Main._
 import Helpers._
 import scala.concurrent.{Future, ExecutionContext}
@@ -22,7 +24,7 @@ case class ClassifyResult(key: String, sentence: String, record: Record) {
 
 object Classifier extends LazyLogging {
 
-  def createConfiguration(name: String) = {
+  def createConfiguration(name: String, strategyClass: StrategyClass) = {
     val configuration = Configuration.getConfiguration
     val mapDBConfiguration = new MapDBConfiguration()
 
@@ -35,12 +37,21 @@ object Classifier extends LazyLogging {
     configuration.getConcurrencyConfig.setMaxNumberOfThreadsPerTask(0)
     configuration.getConcurrencyConfig.setParallelized(true)
 
-    val modelerClass = classOf[MultinomialNaiveBayes]
-    val modelerParameters = new MultinomialNaiveBayes.TrainingParameters()
-
     val trainingParameters = new TrainingParameters()
-    trainingParameters.setModelerClass(modelerClass)
-    trainingParameters.setModelerTrainingParameters(modelerParameters)
+    strategyClass.ct match {
+      case Multinomial =>
+        trainingParameters.setModelerClass(classOf[MultinomialNaiveBayes])
+        trainingParameters.setModelerTrainingParameters(new MultinomialNaiveBayes.TrainingParameters())
+
+      case Binarized =>
+        trainingParameters.setModelerClass(classOf[BinarizedNaiveBayes])
+        trainingParameters.setModelerTrainingParameters(new BinarizedNaiveBayes.TrainingParameters())
+
+      case Bernoulli =>
+        trainingParameters.setModelerClass(classOf[BernoulliNaiveBayes])
+        trainingParameters.setModelerTrainingParameters(new BernoulliNaiveBayes.TrainingParameters())
+
+    }
     trainingParameters.setDataTransformerClass(null)
     trainingParameters.setDataTransformerTrainingParameters(null)
     trainingParameters.setFeatureSelectorClass(classOf[ChisquareSelect])
@@ -48,13 +59,20 @@ object Classifier extends LazyLogging {
     trainingParameters.setTextExtractorClass(classOf[NgramsExtractor])
     trainingParameters.setTextExtractorParameters(new NgramsExtractor.Parameters)
 
-    val dbName = name + "A"
+    val dbName = name + "" + md5(trainingParameters.getModelerClass.toString)
 
     val classifier = new TextClassifier(dbName, configuration)
 
     logger.info("Created db with name: " + dbName)
 
     (configuration, classifier, trainingParameters)
+  }
+
+  def md5(s: String): String = {
+    val m = java.security.MessageDigest.getInstance("MD5")
+    val b = s.getBytes("UTF-8")
+    m.update(b, 0, b.length)
+    new java.math.BigInteger(1, m.digest()).toString(16)
   }
 
   def prepareCSV(file: String)(implicit exec: ExecutionContext): Stream[CsvLine] = {
@@ -103,12 +121,8 @@ object Classifier extends LazyLogging {
     }
   }
 
-  def learn(databaseName: String, csvEntries: Stream[CsvLine])(implicit exec: ExecutionContext) = {
-    val c = classOf[MultinomialNaiveBayes]
-    val params = new MultinomialNaiveBayes.TrainingParameters()
-
-    val (conf, classifier, trainingParameters) = createConfiguration(databaseName)
-
+  def learn(databaseName: String, csvEntries: Stream[CsvLine], strategyClass: StrategyClass)(implicit exec: ExecutionContext) = {
+    val (conf, classifier, trainingParameters) = createConfiguration(databaseName, strategyClass)
     for {
       grouped <- Future { csvGroupByKey(csvEntries) }
       records <- assembleRecords(grouped)
@@ -117,7 +131,7 @@ object Classifier extends LazyLogging {
   }
 
   var _dbForThreadMap = Map[String, TextClassifier]()
-  private def dbForThread(dbName: String): TextClassifier = {
+  private def dbForThread(dbName: String, strategyClass: StrategyClass): TextClassifier = {
     val threadName = Thread.currentThread().getName
     _dbForThreadMap.get(threadName) match {
       case Some(db) =>
@@ -125,7 +139,7 @@ object Classifier extends LazyLogging {
 
       case None =>
         _dbForThreadMap.synchronized {
-          val (_, classifier, _) = createConfiguration(dbName)
+          val (_, classifier, _) = createConfiguration(dbName, strategyClass)
           _dbForThreadMap = _dbForThreadMap updated(threadName, classifier)
           classifier
         }
@@ -133,11 +147,11 @@ object Classifier extends LazyLogging {
   }
 
 
-  def classify(dbName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Future[Stream[ClassifyResult]] = {
+  def classify(dbName: String, lines: Stream[CsvLine], strategyClass: StrategyClass)(implicit exec: ExecutionContext): Future[Stream[ClassifyResult]] = {
     val futures = lines.map { csvLine =>
       Future {
         val sentence = csvLine.value.head
-        ClassifyResult(csvLine.key, sentence, dbForThread(dbName).predict(sentence.replaceAll("\n", " ")))
+        ClassifyResult(csvLine.key, sentence, dbForThread(dbName, strategyClass).predict(sentence.replaceAll("\n", " ")))
       }
     }
 
