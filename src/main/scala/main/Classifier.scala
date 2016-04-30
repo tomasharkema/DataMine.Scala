@@ -118,21 +118,8 @@ object Classifier extends LazyLogging {
     } yield populatedDatabase
   }
 
-  private var classifierForThread: Map[String, TextClassifier] = Map()
-
-  private def textClassifierForThread(dbName: String, threadName: String = Thread.currentThread().getName): TextClassifier = classifierForThread.synchronized(
-    classifierForThread.get(threadName) match {
-      case Some(classifier) =>
-        classifier
-      case None =>
-        val (_, classifier, _) = createConfiguration(dbName)
-        classifierForThread = classifierForThread updated (threadName, classifier)
-        classifier
-    }
-  )
-
-  def classify(databaseName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Stream[ClassifyResult] = {//Future[Stream[ClassifyResult]] = {
-    val classifier = textClassifierForThread(databaseName)
+  def classify(dbName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Stream[ClassifyResult] = {//Future[Stream[ClassifyResult]] = {
+    val (_, classifier, _) = createConfiguration(dbName)
     val futures = lines.map { csvLine =>
 //      Future {
         val sentence = csvLine.value.head
