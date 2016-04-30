@@ -131,16 +131,17 @@ object Classifier extends LazyLogging {
     }
   )
 
-  def classify(databaseName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Future[Stream[ClassifyResult]] = {
+  def classify(databaseName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Stream[ClassifyResult] = {//Future[Stream[ClassifyResult]] = {
     val classifier = textClassifierForThread(databaseName)
     val futures = lines.map { csvLine =>
-      Future {
+//      Future {
         val sentence = csvLine.value.head
         ClassifyResult(csvLine.key, sentence, classifier.predict(sentence.replaceAll("\n", " ")))
-      }
+//      }
     }
 
-    Future.sequence(futures)
+//    Future.sequence(futures)
+    futures
   }
 
 }
