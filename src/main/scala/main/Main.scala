@@ -18,8 +18,7 @@ import scala.util.{Failure, Success}
 import helpers.StreamHelpers._
 
 object Main extends LazyLogging {
-  import scala.concurrent.ExecutionContext.Implicits.global
-//  implicit val exec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors))
+  implicit val exec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors))
 
   def replaceIrregularities(string: String) = string
     .replaceAll("<br />", "\n")
@@ -84,7 +83,7 @@ object Main extends LazyLogging {
 
     logger.info("Done")
 
-    System.exit(0)
+//    System.exit(0)
   }
 
 }
