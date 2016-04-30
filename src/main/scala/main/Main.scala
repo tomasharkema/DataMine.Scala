@@ -74,9 +74,9 @@ object Main extends LazyLogging {
       val classifierResults =
         Classifier.prepareCSV(file)
           .map { _.takeLastHalf }
-          .map { entries => Classifier.classify(databaseName, entries) }
+          .flatMap { entries => Classifier.classify(databaseName, entries) }
 
-      val classifyResults = Await.result(classifierResults, Duration.Inf)
+      val classifyResults: Stream[ClassifyResult] = Await.result(classifierResults, Duration.Inf)
       classifyResults foreach println
     }
 

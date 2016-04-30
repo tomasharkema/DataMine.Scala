@@ -13,6 +13,7 @@ import com.typesafe.scalalogging.LazyLogging
 import main.Main._
 import Helpers._
 
+import scala.collection.mutable
 import scala.concurrent.{Future, ExecutionContext}
 
 case class CsvLine(key: String, value: Stream[String])
@@ -117,16 +118,29 @@ object Classifier extends LazyLogging {
     } yield populatedDatabase
   }
 
-  def classify(databaseName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Future[Stream[ClassifyResult]] = {
-    val (_, classifier, _) = createConfiguration(databaseName)
-    Future {
-      lines.flatMap(csvLine =>
-        csvLine.value.map { sentence =>
-          logger.info("predicting: " + sentence)
-          ClassifyResult(csvLine.key, sentence, classifier.predict(sentence.replaceAll("\n", " ")))
-        }
-      )
+  private var classifierForThread: Map[String, TextClassifier] = Map()
+
+  private def textClassifierForThread(dbName: String, threadName: String = Thread.currentThread().getName): TextClassifier = classifierForThread.synchronized(
+    classifierForThread.get(threadName) match {
+      case Some(classifier) =>
+        classifier
+      case None =>
+        val (_, classifier, _) = createConfiguration(dbName)
+        classifierForThread = classifierForThread updated (threadName, classifier)
+        classifier
     }
+  )
+
+  def classify(databaseName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext): Future[Stream[ClassifyResult]] = {
+    val futures = lines.map { csvLine =>
+      Future {
+        val classifier = textClassifierForThread(databaseName)
+        val sentence = csvLine.value.head
+        ClassifyResult(csvLine.key, sentence, classifier.predict(sentence.replaceAll("\n", " ")))
+      }
+    }
+
+    Future.sequence(futures)
   }
 
 }
