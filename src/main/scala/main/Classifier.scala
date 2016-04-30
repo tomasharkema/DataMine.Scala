@@ -18,9 +18,9 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
 import Helpers._
 
-/**
-  * Created by tomas on 28-02-16.
-  */
+case class CsvLine(key: String, value: Stream[String])
+case class ClassifyResult(key: String, sentence: String, record: Record)
+
 object Classifier extends LazyLogging {
 
   def createDatabase[ML <: BaseMLmodel[_ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.ModelParameters, _ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.TrainingParameters, _ <: com.datumbox.framework.machinelearning.common.bases.mlmodels.BaseMLmodel.ValidationMetrics]]
@@ -39,7 +39,7 @@ object Classifier extends LazyLogging {
     (new TextClassifier(name, dbConf), trainingParameters)
   }
 
-  private def prepareCSV(file: String)(implicit exec: ExecutionContext) = {
+  def prepareCSV(file: String)(implicit exec: ExecutionContext): Future[Stream[CsvLine]] = {
     logger.info("Load file " + file)
 
     val stream =  Future { getClass.getResourceAsStream("/" + file) }
@@ -56,13 +56,13 @@ object Classifier extends LazyLogging {
     rows.map { rows =>
       rows.map { el =>
         val e = el.toStream
-        new {
-          val key = e.head
-          val value = e.slice(1, 4)
-        }
-      }.toStream.groupByKeyAndValue(_.key)(_.value.toStream)
+        CsvLine(e.head, e.slice(1, 4))
+      }.toStream
     }
   }
+
+  private def csvGroupByKey(stream: Stream[CsvLine]): Map[String, Stream[String]] =
+    stream.groupByKeyAndValue(_.key)(_.value.toStream)
 
   private def createRecord(idx: Int, key: String, value: String)(implicit exec: ExecutionContext) = Future {
 //   logger.info("Create record for " + key + " no " + idx)
@@ -89,7 +89,7 @@ object Classifier extends LazyLogging {
     }
   }
 
-  def learn(databaseName: String, fileName: String)(implicit exec: ExecutionContext) = {
+  def learn(databaseName: String, csvEntries: Stream[CsvLine])(implicit exec: ExecutionContext) = {
     val c = classOf[MultinomialNaiveBayes]
     val params = new MultinomialNaiveBayes.TrainingParameters()
 
@@ -97,20 +97,23 @@ object Classifier extends LazyLogging {
     val (database, trainingParameters) = createDatabase(databaseName, c, params, dbConf)
 
     for {
-      csvEntries <- prepareCSV(fileName)
-      records <- assembleRecords(csvEntries)
+      grouped <- Future { csvGroupByKey(csvEntries) }
+      records <- assembleRecords(grouped)
       populatedDatabase <- populateDatabase(database, dbConf, trainingParameters, records)
     } yield populatedDatabase
   }
 
-  def classify(databaseName: String, sentences: Stream[String])(implicit exec: ExecutionContext) = {
-    sentences.map(sentence => Future {
+  def classify(databaseName: String, lines: Stream[CsvLine])(implicit exec: ExecutionContext) = {
+    lines.map(csvLine => Future {
       val c = classOf[MultinomialNaiveBayes]
       val params = new MultinomialNaiveBayes.TrainingParameters()
 
       val dbConf = ConfigurationFactory.MAPDB.getConfiguration
       val (database, _) = createDatabase(databaseName, c, params, dbConf)
-      (c.getClass.getSimpleName, sentence, database.predict(sentence))
+
+      csvLine.value.map { sentence =>
+        ClassifyResult(csvLine.key, sentence, database.predict(sentence))
+      }
     })
   }
 
