@@ -109,7 +109,7 @@ object Classifier extends LazyLogging {
 
     val stream =  getClass.getResourceAsStream("/" + file)
     val lines = scala.io.Source.fromInputStream(stream).getLines
-    val rows = lines.map(SeparatorIterator(_, ";")) drop 1 map { _ map replaceIrregularities }
+    val rows = lines.map(SeparatorIterator(_, ";")) drop 1
     logger.info("Parsed lines. Crunching it")
 
     rows.map { el =>

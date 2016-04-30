@@ -12,10 +12,6 @@ import scala.concurrent.{Await, Future}
 
 object Main extends LazyLogging {
 
-  def replaceIrregularities(string: String) = string
-    .replaceAll("<br />", "\n")
-    .replaceAll("<wbr />", "\n")
-
   def main(args: Array[String]) {
 
     println(args.toSeq)
@@ -36,11 +32,11 @@ object Main extends LazyLogging {
       }
     }
 
-    val classifiers: Seq[ClassifierType] = Seq(Multinomial, Binarized, Bernoulli)//.take(1)
+    val classifiers: Seq[ClassifierType] = Seq(Multinomial, Binarized, Bernoulli).take(1)
 
-    val featureSelector: Seq[FeatureSelectType] = Seq(Chisquare, MutualInformation)//.take(1)
+    val featureSelector: Seq[FeatureSelectType] = Seq(Chisquare, MutualInformation).take(1)
 
-    val textExtractors: Seq[TextExtractorType] = Seq(Ngrams, UniqueWordSequence, WordSequence)//.take(1)
+    val textExtractors: Seq[TextExtractorType] = Seq(Ngrams, UniqueWordSequence, WordSequence).take(1)
 
     val types = classifiers.flatMap { c =>
       featureSelector.flatMap { f =>

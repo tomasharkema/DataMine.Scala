@@ -13,7 +13,7 @@ object StopWords {
   implicit class StopWords(string: String) {
     implicit def filterStopWords: String = {
       stopWords.fold(string) { (prev, element) =>
-        prev.replaceAll(element, "")
+        prev.replaceAll(" " + element + " ", " ")
       }
     }
   }
