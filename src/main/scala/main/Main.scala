@@ -1,24 +1,19 @@
 package main
 
-import java.util
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
-import java.util.{Date, UUID}
+import java.util.Date
+import java.util.concurrent.atomic.AtomicBoolean
 
-import Helpers._
-import com.datumbox.framework.core.machinelearning.classification.{MultinomialNaiveBayes, BinarizedNaiveBayes, BernoulliNaiveBayes}
-import com.datumbox.framework.core.machinelearning.featureselection.categorical.{MutualInformation, ChisquareSelect}
-import com.datumbox.framework.core.utilities.text.extractors.{WordSequenceExtractor, UniqueWordSequenceExtractor, NgramsExtractor}
+import com.datumbox.framework.core.machinelearning.classification.{BernoulliNaiveBayes, BinarizedNaiveBayes, MultinomialNaiveBayes}
+import com.datumbox.framework.core.machinelearning.featureselection.categorical.{ChisquareSelect, MutualInformation}
+import com.datumbox.framework.core.utilities.text.extractors.{NgramsExtractor, UniqueWordSequenceExtractor, WordSequenceExtractor}
 import com.typesafe.scalalogging.LazyLogging
+import main.helpers.StreamHelpers._
 
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Promise, ExecutionContext, Await, Future}
-
-import scala.util.{Failure, Success}
-import helpers.StreamHelpers._
+import scala.concurrent.{Await, Future}
 
 object Main extends LazyLogging {
-  implicit val exec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors))
 
   def replaceIrregularities(string: String) = string
     .replaceAll("<br />", "\n")
@@ -63,20 +58,16 @@ object Main extends LazyLogging {
     if (learn) {
       logger.info("Learn")
 
-      val learnResFuture = Classifier.prepareCSV(file)
-        .map { _.takeFirstHalf }
-        .flatMap { entries => Classifier.learn(databaseName, entries) }
-      val learnResults = Await.result(learnResFuture, Duration.Inf)
+      val entries = Classifier.prepareCSV(file).takeFirstHalf
+      val classifier = Classifier.learn(databaseName, entries)
+      val learnResults = Await.result(classifier, Duration.Inf)
       logger.info(learnResults.toString)
     } else {
       logger.info("Classify")
-      val classifierResults =
-        Classifier.prepareCSV(file)
-          .map { _.takeLastHalf }
-          .map { entries => Classifier.classify(databaseName, entries) }
-
-      val classifyResults: Stream[ClassifyResult] = Await.result(classifierResults, Duration.Inf)
-      classifyResults foreach println
+      val entries = Classifier.prepareCSV(file).takeLastHalf
+      val classifierResults = Classifier.classify(databaseName, entries)
+//      val classifyResults: Stream[ClassifyResult] = Await.result(classifierResults, Duration.Inf)
+      classifierResults foreach println
     }
 
     isLearning.set(false)

@@ -6,14 +6,11 @@ import com.datumbox.framework.common.Configuration
 import com.datumbox.framework.common.dataobjects.{Dataframe, AssociativeArray, Record}
 import com.datumbox.framework.common.persistentstorage.mapdb.MapDBConfiguration
 import com.datumbox.framework.core.machinelearning.classification.MultinomialNaiveBayes
-import com.datumbox.framework.core.machinelearning.common.abstracts.modelers.AbstractModeler
 import com.datumbox.framework.core.machinelearning.featureselection.categorical.ChisquareSelect
 import com.datumbox.framework.core.utilities.text.extractors.{AbstractTextExtractor, NgramsExtractor}
 import com.typesafe.scalalogging.LazyLogging
 import main.Main._
 import Helpers._
-
-import scala.collection.mutable
 import scala.concurrent.{Future, ExecutionContext}
 
 case class CsvLine(key: String, value: Stream[String])
@@ -51,26 +48,18 @@ object Classifier extends LazyLogging {
     (configuration, classifier, trainingParameters)
   }
 
-  def prepareCSV(file: String)(implicit exec: ExecutionContext): Future[Stream[CsvLine]] = {
+  def prepareCSV(file: String)(implicit exec: ExecutionContext): Stream[CsvLine] = {
     logger.info("Load file " + file)
 
-    val stream =  Future { getClass.getResourceAsStream("/" + file) }
-    val lines = stream.flatMap { stream =>
-      logger.info("Load loaded. Read it.")
-      Future { scala.io.Source.fromInputStream(stream).getLines }
-    }
-    val rows = lines.flatMap { lines =>
-      logger.info("Got lines. Parsing it")
-      Future { lines.map(SeparatorIterator(_, ";")) drop 1 map { _ map replaceIrregularities } }
-    }
+    val stream =  getClass.getResourceAsStream("/" + file)
+    val lines = scala.io.Source.fromInputStream(stream).getLines
+    val rows = lines.map(SeparatorIterator(_, ";")) drop 1 map { _ map replaceIrregularities }
     logger.info("Parsed lines. Crunching it")
 
-    rows.map { rows =>
-      rows.map { el =>
-        val e = el.toStream
-        CsvLine(e.head, e.slice(1, 4))
-      }.toStream
-    }
+    rows.map { el =>
+      val e = el.toStream
+      CsvLine(e.head, e.slice(1, 4))
+    }.toStream
   }
 
   private def csvGroupByKey(stream: Stream[CsvLine]): Map[String, Stream[String]] =
